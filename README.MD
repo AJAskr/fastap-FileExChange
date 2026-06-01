@@ -18,3 +18,4 @@ uploads             --用于存储用户上传的文件
 files.db            --用户存储文件上传的描述信息
 main.py             --后端核心逻辑
 ```
+![](https://raw.githubusercontent.com/AJAskr/fastap-FileExChange/refs/heads/main/132121.png)
