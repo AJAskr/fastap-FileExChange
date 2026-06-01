@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>轻量级文件中转站</title>
+    <style>
+        /* ========== 全局 & 变量 ========== */
+        :root {
+            --primary: #4a90d9;
+            --primary-light: #e8f1fb;
+            --bg: #f4f8fd;
+            --card-bg: #ffffff;
+            --text: #333;
+            --text-secondary: #666;
+            --border: #d0e1f9;
+            --shadow: 0 4px 12px rgba(74, 144, 217, 0.1);
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', system-ui, sans-serif;
+            background: var(--bg);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        /* ========== 动态炫彩标题 ========== */
+        .main-title {
+            margin-top: 30px;
+            margin-bottom: 20px;
+            font-size: 2.8rem;
+            font-weight: 800;
+            text-align: center;
+            /* 背景渐变色，并且设置动画让背景位置移动 */
+            background: linear-gradient(
+                270deg,
+                #4facfe, #00f2fe, #43e97b, #f6d365, #f5576c, #5433ff, #00f2fe
+            );
+            background-size: 400% 400%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            /* 光晕阴影增加立体感 */
+            filter: drop-shadow(0 0 8px rgba(79, 172, 254, 0.6));
+            /* 动画：背景缓慢移动 */
+            animation: gradientShift 6s ease infinite;
+        }
+        @keyframes gradientShift {
+            0% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+        /* 响应式调整标题大小 */
+        @media (max-width: 600px) {
+            .main-title {
+                font-size: 2rem;
+            }
+        }
+
+        /* ========== 卡片容器 ========== */
+        .container {
+            width: 100%;
+            max-width: 540px;
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+
+        /* 卡片 */
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 30px 28px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+        }
+
+        /* 卡片标题 */
+        .card-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .card-title i {
+            font-size: 1.6rem;
+        }
+
+        /* 上传区域 */
+        .upload-area {
+            border: 2px dashed var(--primary);
+            border-radius: 14px;
+            background: var(--primary-light);
+            padding: 40px 20px;
+            text-align: center;
+            transition: all 0.2s;
+            cursor: pointer;
+            color: var(--primary);
+            font-weight: 500;
+        }
+        .upload-area:hover,
+        .upload-area.dragover {
+            background: #d9e9fa;
+            border-color: #2d6ec7;
+        }
+        .upload-area .icon {
+            font-size: 2.8rem;
+            margin-bottom: 12px;
+        }
+        .file-hint {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-top: 8px;
+        }
+
+        /* 进度条 */
+        .progress-wrapper {
+            display: none;
+            margin-top: 18px;
+        }
+        .progress-bg {
+            width: 100%;
+            height: 10px;
+            background: #e0e8f0;
+            border-radius: 20px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #4a90d9, #7ab0f0);
+            border-radius: 20px;
+            transition: width 0.3s ease;
+        }
+        .progress-text {
+            text-align: right;
+            font-size: 0.9rem;
+            color: var(--primary);
+            margin-top: 6px;
+        }
+
+        /* 结果提示 */
+        .result-box {
+            margin-top: 20px;
+            padding: 12px 16px;
+            background: var(--primary-light);
+            border-radius: 10px;
+            display: none;
+            font-size: 0.95rem;
+            color: var(--text);
+            word-break: break-all;
+        }
+        .result-box .code {
+            font-weight: 700;
+            color: var(--primary);
+            font-size: 1.2rem;
+            letter-spacing: 1px;
+        }
+
+        /* 下载区域 */
+        .download-row {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        .input-code {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            font-size: 1rem;
+            outline: none;
+            transition: border 0.2s;
+        }
+        .input-code:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(74,144,217,0.15);
+        }
+        .btn {
+            background: var(--primary);
+            border: none;
+            color: white;
+            font-weight: 600;
+            padding: 12px 22px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+        .btn:hover {
+            background: #357abd;
+        }
+        .btn:disabled {
+            background: #b0cce8;
+            cursor: not-allowed;
+        }
+
+        .file-info {
+            margin-top: 16px;
+            padding: 12px 16px;
+            background: #f0f5fc;
+            border-radius: 10px;
+            display: none;
+            font-size: 0.95rem;
+            color: var(--text);
+        }
+        .file-info .dl-btn {
+            margin-top: 12px;
+            display: inline-block;
+            width: auto;
+        }
+
+        /* 通用 */
+        .hidden {
+            display: none;
+        }
+        .mt-2 {
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ========== 动态炫彩大标题 ========== -->
+    <h1 class="main-title">轻量级文件中转站</h1>
+
+    <div class="container">
+        <!-- 上传卡片 -->
+        <div class="card">
+            <div class="card-title">
+                <span>📤</span> 上传文件
+            </div>
+            <div class="upload-area" id="uploadArea">
+                <div class="icon">⬆️</div>
+                <div>拖拽文件到此处或点击选择</div>
+                <div class="file-hint">单个文件最大 500MB</div>
+            </div>
+            <input type="file" id="fileInput" style="display: none;" />
+
+            <div class="progress-wrapper" id="progressWrapper">
+                <div class="progress-bg">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-text" id="progressText">0%</div>
+            </div>
+
+            <div class="result-box" id="resultBox">
+                <span>✅ 上传成功！文件码：</span>
+                <span class="code" id="codeDisplay"></span>
+                <div style="margin-top:6px;color:#555;" id="fileNameDisplay"></div>
+            </div>
+        </div>
+
+        <!-- 下载卡片 -->
+        <div class="card">
+            <div class="card-title">
+                <span>📥</span> 下载文件
+            </div>
+            <div class="download-row">
+                <input type="text" class="input-code" id="codeInput" placeholder="输入5位文件码" maxlength="5" autocomplete="off">
+                <button class="btn" id="queryBtn">查询</button>
+            </div>
+            <div class="file-info" id="fileInfoBox">
+                <div id="infoFilename"></div>
+                <div id="infoSize"></div>
+                <div id="infoTime"></div>
+                <button class="btn dl-btn" id="downloadBtn" style="display:none;">⬇️ 下载文件</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "http://localhost:8000";  // 修改为你的后端地址
+
+        // ---------- 上传 ----------
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const progressWrapper = document.getElementById('progressWrapper');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const resultBox = document.getElementById('resultBox');
+        const codeDisplay = document.getElementById('codeDisplay');
+        const fileNameDisplay = document.getElementById('fileNameDisplay');
+
+        // 点击上传区域
+        uploadArea.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                uploadFile(e.target.files[0]);
+                fileInput.value = ''; // 允许重复选同一个文件
+            }
+        });
+
+        // 拖拽上传
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) uploadFile(files[0]);
+        });
+
+        function uploadFile(file) {
+            if (file.size > 500 * 1024 * 1024) {
+                alert('文件大小不能超过 500MB');
+                return;
+            }
+
+            // 隐藏之前的结果，显示进度条
+            resultBox.style.display = 'none';
+            progressWrapper.style.display = 'block';
+            progressFill.style.width = '0%';
+            progressText.textContent = '0%';
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', `${API_BASE}/api/upload`, true);
+
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                    const percent = Math.round((e.loaded / e.total) * 100);
+                    progressFill.style.width = percent + '%';
+                    progressText.textContent = percent + '%';
+                }
+            });
+
+            xhr.addEventListener('load', () => {
+                progressWrapper.style.display = 'none';
+                if (xhr.status === 200) {
+                    const res = JSON.parse(xhr.responseText);
+                    codeDisplay.textContent = res.code;
+                    fileNameDisplay.textContent = `文件名：${res.filename}（${formatSize(res.size)}）`;
+                    resultBox.style.display = 'block';
+                } else {
+                    let msg = '上传失败';
+                    try {
+                        msg = JSON.parse(xhr.responseText).detail || msg;
+                    } catch (_) {}
+                    alert(msg);
+                }
+            });
+
+            xhr.addEventListener('error', () => {
+                progressWrapper.style.display = 'none';
+                alert('网络错误，上传失败');
+            });
+
+            xhr.send(formData);
+        }
+
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        // ---------- 下载 ----------
+        const codeInput = document.getElementById('codeInput');
+        const queryBtn = document.getElementById('queryBtn');
+        const fileInfoBox = document.getElementById('fileInfoBox');
+        const infoFilename = document.getElementById('infoFilename');
+        const infoSize = document.getElementById('infoSize');
+        const infoTime = document.getElementById('infoTime');
+        const downloadBtn = document.getElementById('downloadBtn');
+
+        queryBtn.addEventListener('click', async () => {
+            const code = codeInput.value.trim();
+            if (code.length !== 5) {
+                alert('请输入5位文件码');
+                return;
+            }
+
+            try {
+                const resp = await fetch(`${API_BASE}/api/file/${code}`);
+                if (!resp.ok) {
+                    const err = await resp.json();
+                    alert('查询失败：' + (err.detail || '文件码不存在'));
+                    fileInfoBox.style.display = 'none';
+                    return;
+                }
+                const data = await resp.json();
+                infoFilename.textContent = '📄 文件名：' + data.filename;
+                infoSize.textContent = '📦 大小：' + formatSize(data.size);
+                infoTime.textContent = '🕒 上传时间：' + data.upload_time;
+                downloadBtn.style.display = 'inline-block';
+                downloadBtn.onclick = () => {
+                    // 直接触发下载
+                    window.location.href = `${API_BASE}/api/download/${code}`;
+                };
+                fileInfoBox.style.display = 'block';
+            } catch (e) {
+                alert('网络错误，请检查后端是否启动');
+            }
+        });
+
+        // 输入框回车自动查询
+        codeInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') queryBtn.click();
+        });
+    </script>
+</body>
+</html>
